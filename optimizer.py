@@ -229,37 +229,29 @@ def compute_metrics(df, geo_distance_w, demo_population_w, demo_bachelors_w,
 # MAIN APP – TOOL 1
 #############################################
 
-def save_profile(profile_name, preferences):
-    """Save the current preferences to a JSON file in the profiles directory."""
-    # Create profiles directory if it doesn't exist
-    os.makedirs('profiles', exist_ok=True)
-    
-    # Save the preferences to a JSON file
-    file_path = os.path.join('profiles', f"{profile_name}.json")
+def save_settings(settings):
+    """Save the current settings to a text file."""
+    os.makedirs('settings', exist_ok=True)
+    file_path = os.path.join('settings', 'optimizer_settings.json')
     with open(file_path, 'w') as f:
-        json.dump(preferences, f)
-    
+        json.dump(settings, f)
     return file_path
 
-def load_profile(profile_name):
-    """Load preferences from a JSON file in the profiles directory."""
-    file_path = os.path.join('profiles', f"{profile_name}.json")
+def load_settings():
+    """Load settings from the settings file if it exists."""
+    file_path = os.path.join('settings', 'optimizer_settings.json')
     try:
-        with open(file_path, 'r') as f:
-            preferences = json.load(f)
-        return preferences
+        if os.path.exists(file_path):
+            with open(file_path, 'r') as f:
+                settings = json.load(f)
+            return settings
+        return None
     except Exception as e:
-        st.error(f"Error loading profile: {e}")
+        st.error(f"Error loading settings: {e}")
         return None
 
-def get_available_profiles():
-    """Get a list of available profile names."""
-    os.makedirs('profiles', exist_ok=True)
-    profiles = [os.path.splitext(f)[0] for f in os.listdir('profiles') if f.endswith('.json')]
-    return profiles
-
 def main():
-    st.title("Tool 1: Clinic ZIP Code Optimization & CSV Generation")
+    st.title("Clinic ZIP Code Optimizer & CSV Generation")
     st.markdown("""
     **Workflow:**
     1. Load clinic and ZIP code data.
@@ -268,7 +260,7 @@ def main():
     4. Query Salesforce for lead counts from the last 6 months (per zipcode).
     5. Merge the Salesforce data (lead count) with the assignments.
     6. Compute the final combined score as a weighted sum of Geographic, Demographic, and Salesforce components.
-    7. The output is an **Optimized Assignments** CSV (with all raw and normalized metrics) for use in Tool 2.
+    7. The output is an **Optimized Assignments** CSV (with all raw and normalized metrics) for visualization.
     """)
 
     # Get Salesforce authentication first
@@ -296,82 +288,68 @@ def main():
     with st.sidebar:
         st.header("Configuration")
         
-        # Profile management
-        st.subheader("Profile Management")
-        profiles = get_available_profiles()
-        selected_profile = st.selectbox("Select Profile", ["Default"] + profiles, index=0)
+        # Load default values or from saved settings
+        default_settings = {
+            "w_geo": 0.33,
+            "w_demo": 0.33,
+            "w_sf": 0.34,
+            "demo_population_w": 0.2,
+            "demo_bachelors_w": 0.2,
+            "demo_graduate_w": 0.0,
+            "demo_poverty_w": 0.2,
+            "demo_income_w": 0.4,
+            "keep_percentage": 50,
+            "rural_radius": 20.0,
+            "urban_radius": 10.0,
+            "selected_clinics": get_valid_locations()
+        }
         
-        # Load default values
-        w_geo_default = 0.33
-        w_demo_default = 0.33
-        w_sf_default = 0.34
-        demo_population_w_default = 0.2
-        demo_bachelors_w_default = 0.2
-        demo_graduate_w_default = 0.0
-        demo_poverty_w_default = 0.2
-        demo_income_w_default = 0.4
-        keep_percentage_default = 50
-        rural_radius_default = 20.0
-        urban_radius_default = 10.0
-        selected_clinics_default = get_valid_locations()
-        
-        # Load profile if selected
-        if selected_profile != "Default" and selected_profile in profiles:
-            preferences = load_profile(selected_profile)
-            if preferences:
-                w_geo_default = preferences.get("w_geo", w_geo_default)
-                w_demo_default = preferences.get("w_demo", w_demo_default)
-                w_sf_default = preferences.get("w_sf", w_sf_default)
-                demo_population_w_default = preferences.get("demo_population_w", demo_population_w_default)
-                demo_bachelors_w_default = preferences.get("demo_bachelors_w", demo_bachelors_w_default)
-                demo_graduate_w_default = preferences.get("demo_graduate_w", demo_graduate_w_default)
-                demo_poverty_w_default = preferences.get("demo_poverty_w", demo_poverty_w_default)
-                demo_income_w_default = preferences.get("demo_income_w", demo_income_w_default)
-                keep_percentage_default = preferences.get("keep_percentage", keep_percentage_default)
-                rural_radius_default = preferences.get("rural_radius", rural_radius_default)
-                urban_radius_default = preferences.get("urban_radius", urban_radius_default)
-                selected_clinics_default = preferences.get("selected_clinics", selected_clinics_default)
+        # Try to load saved settings
+        saved_settings = load_settings()
+        if saved_settings:
+            st.success("Loaded saved settings.")
+            settings = saved_settings
+        else:
+            settings = default_settings
         
         # Weight configuration
         st.subheader("Overall Weights (Must Sum to 1.0)")
-        w_geo = st.number_input("Geographic Weight", value=w_geo_default, min_value=0.0, max_value=1.0, step=0.01)
-        w_demo = st.number_input("Demographic Weight", value=w_demo_default, min_value=0.0, max_value=1.0, step=0.01)
-        w_sf = st.number_input("Salesforce Weight", value=w_sf_default, min_value=0.0, max_value=1.0, step=0.01)
+        w_geo = st.number_input("Geographic Weight", value=settings["w_geo"], min_value=0.0, max_value=1.0, step=0.01)
+        w_demo = st.number_input("Demographic Weight", value=settings["w_demo"], min_value=0.0, max_value=1.0, step=0.01)
+        w_sf = st.number_input("Salesforce Weight", value=settings["w_sf"], min_value=0.0, max_value=1.0, step=0.01)
         if abs(w_geo + w_demo + w_sf - 1.0) > 1e-3:
             st.error("The three overall weights must sum to 1.0!")
             st.stop()
 
         st.subheader("Demographic Sub-Weights (Must Sum to 1.0)")
-        demo_population_w = st.slider("Population Weight", 0.0, 1.0, demo_population_w_default, 0.05)
-        demo_bachelors_w = st.slider("Bachelor's Degree Weight", 0.0, 1.0, demo_bachelors_w_default, 0.05)
-        demo_graduate_w = st.slider("Graduate Degree Weight", 0.0, 1.0, demo_graduate_w_default, 0.05)
-        demo_poverty_w = st.slider("Poverty Weight", 0.0, 1.0, demo_poverty_w_default, 0.05)
-        demo_income_w = st.slider("Income Weight", 0.0, 1.0, demo_income_w_default, 0.05)
+        demo_population_w = st.slider("Population Weight", 0.0, 1.0, settings["demo_population_w"], 0.05)
+        demo_bachelors_w = st.slider("Bachelor's Degree Weight", 0.0, 1.0, settings["demo_bachelors_w"], 0.05)
+        demo_graduate_w = st.slider("Graduate Degree Weight", 0.0, 1.0, settings["demo_graduate_w"], 0.05)
+        demo_poverty_w = st.slider("Poverty Weight", 0.0, 1.0, settings["demo_poverty_w"], 0.05)
+        demo_income_w = st.slider("Income Weight", 0.0, 1.0, settings["demo_income_w"], 0.05)
         demo_sum = demo_population_w + demo_bachelors_w + demo_graduate_w + demo_poverty_w + demo_income_w
         if abs(demo_sum - 1.0) > 1e-3:
             st.error("Demographic sub-weights must sum to 1.0!")
             st.stop()
 
         st.subheader("Other Parameters")
-        keep_percentage = st.slider("Percentage of ZIP codes to optimize", 0, 100, keep_percentage_default, 1)
+        keep_percentage = st.slider("Percentage of ZIP codes to optimize", 0, 100, settings["keep_percentage"], 1)
         
         # Add separate radius inputs for rural and urban clinics
         st.subheader("Clinic Service Radius")
-        rural_radius = st.number_input("Rural Clinic Radius (miles)", 1.0, 1000.0, rural_radius_default, 1.0)
-        urban_radius = st.number_input("Urban Clinic Radius (miles)", 1.0, 1000.0, urban_radius_default, 1.0)
+        rural_radius = st.number_input("Rural Clinic Radius (miles)", 1.0, 1000.0, settings["rural_radius"], 1.0)
+        urban_radius = st.number_input("Urban Clinic Radius (miles)", 1.0, 1000.0, settings["urban_radius"], 1.0)
         
         selected_clinics = st.multiselect("Select Clinics to Process",
                                           options=get_valid_locations(),
-                                          default=selected_clinics_default)
+                                          default=settings["selected_clinics"])
         
-        # Save profile section
-        st.subheader("Save Current Settings")
-        new_profile_name = st.text_input("Profile Name", value="")
-        save_button = st.button("Save Preferences")
+        # Simple save button
+        save_button = st.button("Save Current Settings")
         
-        if save_button and new_profile_name:
-            # Create preferences dictionary
-            preferences = {
+        if save_button:
+            # Create settings dictionary
+            current_settings = {
                 "w_geo": w_geo,
                 "w_demo": w_demo,
                 "w_sf": w_sf,
@@ -386,11 +364,9 @@ def main():
                 "selected_clinics": selected_clinics
             }
             
-            # Save the profile
-            file_path = save_profile(new_profile_name, preferences)
-            st.success(f"Preferences saved to {file_path}")
-            # Force a rerun to update the profile dropdown
-            st.experimental_rerun()
+            # Save the settings
+            file_path = save_settings(current_settings)
+            st.success(f"Settings saved to {file_path}")
 
         run_button = st.button("Run Optimization")
 
