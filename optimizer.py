@@ -271,6 +271,28 @@ def main():
     7. The output is an **Optimized Assignments** CSV (with all raw and normalized metrics) for use in Tool 2.
     """)
 
+    # Get Salesforce authentication first
+    sf = None
+    if 'sf_authenticated' not in st.session_state:
+        st.session_state.sf_authenticated = False
+    
+    if not st.session_state.sf_authenticated:
+        st.header("Step 1: Salesforce Authentication")
+        sf = get_salesforce_auth()
+        if sf is not None:
+            st.session_state.sf = sf
+            st.session_state.sf_authenticated = True
+            st.success("Salesforce authentication successful! Please configure optimization parameters.")
+        else:
+            st.warning("Please authenticate with Salesforce to continue.")
+            return
+    else:
+        sf = st.session_state.sf
+        st.success("Using existing Salesforce authentication.")
+
+    # Continue with the rest of the process
+    st.header("Step 2: Configure Optimization Parameters")
+    
     with st.sidebar:
         st.header("Configuration")
         
@@ -462,64 +484,58 @@ def main():
 
     st.info("Querying Salesforce for lead counts from the last 6 months (per zipcode)...")
     try:
-        sf = get_salesforce_auth()
+        sf_records = get_leads_last_6_months(sf)
+        sf_df = pd.DataFrame(sf_records)
+        if 'attributes' in sf_df.columns:
+            sf_df = sf_df.drop(columns='attributes')
         
-        if sf is None:
-            st.warning("Please authenticate with Salesforce to continue.")
-        else:
-            # Continue with the existing code for querying Salesforce
-            sf_records = get_leads_last_6_months(sf)
-            sf_df = pd.DataFrame(sf_records)
-            if 'attributes' in sf_df.columns:
-                sf_df = sf_df.drop(columns='attributes')
-            
-            sf_group = sf_df.groupby('PostalCode', as_index=False)['Name'].count()
-            sf_group.rename(columns={'Name': 'lead_count'}, inplace=True)
-            sf_group['zip'] = sf_group['PostalCode'].str.zfill(5)
-            
-            # Merge Salesforce data (lead_count) into final assignments.
-            final_assignments = final_assignments.merge(sf_group[['zip', 'lead_count']], on='zip', how='left')
-            final_assignments['lead_count'] = final_assignments['lead_count'].fillna(0)
-            final_assignments['sf_leads_norm'] = min_max_normalize(final_assignments['lead_count'])
-            
-            # Compute final combined score.
-            final_assignments['final_combined_score'] = (
-                w_geo * final_assignments['geo_score'] +
-                w_demo * final_assignments['demo_score'] +
-                w_sf * final_assignments['sf_leads_norm']
-            )
+        sf_group = sf_df.groupby('PostalCode', as_index=False)['Name'].count()
+        sf_group.rename(columns={'Name': 'lead_count'}, inplace=True)
+        sf_group['zip'] = sf_group['PostalCode'].str.zfill(5)
+        
+        # Merge Salesforce data (lead_count) into final assignments.
+        final_assignments = final_assignments.merge(sf_group[['zip', 'lead_count']], on='zip', how='left')
+        final_assignments['lead_count'] = final_assignments['lead_count'].fillna(0)
+        final_assignments['sf_leads_norm'] = min_max_normalize(final_assignments['lead_count'])
+        
+        # Compute final combined score.
+        final_assignments['final_combined_score'] = (
+            w_geo * final_assignments['geo_score'] +
+            w_demo * final_assignments['demo_score'] +
+            w_sf * final_assignments['sf_leads_norm']
+        )
 
-            final_assignments = final_assignments.sort_values('final_combined_score', ascending=False).reset_index(drop=True)
-            keep_count = int(math.ceil(len(final_assignments) * (keep_percentage / 100)))
-            final_assignments['Optimized'] = False
-            if keep_count > 0:
-                final_assignments.loc[:keep_count - 1, 'Optimized'] = True
+        final_assignments = final_assignments.sort_values('final_combined_score', ascending=False).reset_index(drop=True)
+        keep_count = int(math.ceil(len(final_assignments) * (keep_percentage / 100)))
+        final_assignments['Optimized'] = False
+        if keep_count > 0:
+            final_assignments.loc[:keep_count - 1, 'Optimized'] = True
 
-            output_cols = [
-                'zip', 'Assigned Clinic', 'Distance to Clinic', 'distance_score', 'geo_score',
-                'population_count', 'pop_norm', 'percent_bachelors_degree', 'bach_norm',
-                'percent_graduate_degree', 'grad_norm', 'percent_population_in_poverty', 'pov_norm',
-                'median_household_income', 'inc_norm', 'demo_score',
-                'lead_count', 'sf_leads_norm',
-                'final_combined_score', 'Optimized'
-            ]
-            output_csv = final_assignments[output_cols].to_csv(index=False)
+        output_cols = [
+            'zip', 'Assigned Clinic', 'Distance to Clinic', 'distance_score', 'geo_score',
+            'population_count', 'pop_norm', 'percent_bachelors_degree', 'bach_norm',
+            'percent_graduate_degree', 'grad_norm', 'percent_population_in_poverty', 'pov_norm',
+            'median_household_income', 'inc_norm', 'demo_score',
+            'lead_count', 'sf_leads_norm',
+            'final_combined_score', 'Optimized'
+        ]
+        output_csv = final_assignments[output_cols].to_csv(index=False)
 
-            output_dir = "data"
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
-            output_path = os.path.join(output_dir, "optimized_assignments_with_tooltip.csv")
-            with open(output_path, "w") as f:
-                f.write(output_csv)
+        output_dir = "data"
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        output_path = os.path.join(output_dir, "optimized_assignments_with_tooltip.csv")
+        with open(output_path, "w") as f:
+            f.write(output_csv)
 
-            st.write("Optimized assignments CSV generated and saved (in the 'data' folder).")
-            st.download_button("Download Optimized Assignments CSV",
-                               data=output_csv,
-                               file_name="optimized_assignments_with_tooltip.csv",
-                               mime="text/csv")
+        st.write("Optimized assignments CSV generated and saved (in the 'data' folder).")
+        st.download_button("Download Optimized Assignments CSV",
+                           data=output_csv,
+                           file_name="optimized_assignments_with_tooltip.csv",
+                           mime="text/csv")
 
-            st.header("Final Optimized Assignments")
-            st.dataframe(final_assignments)
+        st.header("Final Optimized Assignments")
+        st.dataframe(final_assignments)
     except Exception as e:
         st.error(f"Error querying Salesforce: {e}")
 
