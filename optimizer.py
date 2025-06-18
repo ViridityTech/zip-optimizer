@@ -9,6 +9,7 @@ import zipfile
 import json
 import glob
 from datetime import datetime
+from common_utils import get_allowed_clinics, get_clinic_types  # Import the new functions
 
 #############################################
 # Salesforce Query Functions
@@ -16,9 +17,27 @@ from datetime import datetime
 
 def get_salesforce_auth():
     """
-    Get Salesforce authentication credentials from user input
+    Get Salesforce authentication credentials from file or user input
     and return authenticated Salesforce instance.
     """
+    # First try to load credentials from file
+    credentials = load_credentials_from_file()
+    
+    if credentials:
+        try:
+            sf = Salesforce(
+                username=credentials['username'],
+                password=credentials['password'],
+                security_token=credentials['security_token'],
+                domain='login'
+            )
+            st.success(f"Successfully authenticated as user: {sf.user_id} using credentials file")
+            return sf
+        except Exception as e:
+            st.warning(f"Authentication failed using credentials file: {str(e)}")
+            st.info("Falling back to manual authentication")
+            # Fall back to manual authentication
+            
     # Create a form for secure credential input
     with st.form("salesforce_auth_form"):
         st.subheader("Salesforce Authentication")
@@ -61,96 +80,11 @@ def get_leads_last_6_months(sf):
     return result['records']
 
 def get_valid_locations():
-    return [
-        'Ankeny',
-        'Beloit',
-        'Bettendorf',
-        'Boise',
-        'Chicago',
-        "Coeur d'Alene",
-        'Crystal Lake',
-        'Eau Claire',
-        'Elgin',
-        'Fond du Lac',
-        'Geneva',
-        'Iowa City',
-        'Lake Geneva',
-        'Meridian',
-        'Moorhead',
-        'Nampa',
-        'Rolling Meadows',
-        'Spokane',
-        'Urbandale',
-        'Warrenville',
-        'Weldon Spring',
-        'West Madison'
-    ]
-
-def get_clinic_types():
-    return {
-        'Ankeny': 'Rural',
-        'Beloit': 'Rural',
-        'Bettendorf': 'Rural',
-        'Boise': 'Rural',
-        "Coeur d'Alene": 'Rural',
-        'Cedar Rapids': 'Rural',
-        'Chicago': 'Urban',
-        'Crystal Lake': 'Urban',
-        'Davenport': 'Rural',
-        'Dubuque': 'Rural',
-        'Dyer': 'Rural',
-        'Eau Claire': 'Rural',
-        'Elgin': 'Urban',
-        'Fond du Lac': 'Rural',
-        'Geneva': 'Rural',
-        'Iowa City': 'Rural',
-        'Lake Geneva': 'Rural',
-        'Meridian': 'Rural',
-        'Moorhead': 'Rural',
-        'Munster': 'Urban',
-        'Nampa': 'Rural',
-        'Rockford': 'Rural',
-        'Rolling Meadows': 'Urban',
-        'Spokane': 'Rural',
-        'Urbandale': 'Urban',
-        'Warrenville': 'Urban',
-        'Weldon Spring': 'Rural',
-        'West Madison': 'Rural',
-        'Anoka': 'Rural',
-        'Duluth': 'Rural',
-        'Lakeville': 'Rural',
-        'Mankato': 'Rural',
-        'Plymouth': 'Rural',
-        'Rochester': 'Rural',
-        'Shakopee': 'Rural',
-        'White Bear Lake': 'Rural',
-        'Woodbury': 'Rural',
-        'Kennewick': 'Rural',
-        'Tacoma': 'Urban',
-        'Appleton': 'Rural',
-        'Bellevue': 'Rural',
-        'Brillion': 'Rural',
-        'Brookfield': 'Urban',
-        'De Pere': 'Urban',
-        'E. Madison': 'Rural',
-        'Franklin': 'Urban',
-        'Green Bay CCD': 'Urban',
-        'Howard': 'Rural',
-        'Janesville': 'Rural',
-        'Kenosha': 'Rural',
-        'Kimberly': 'Urban',
-        'La Crosse': 'Rural',
-        'Menomonee': 'Rural',
-        'Mequon': 'Rural',
-        'Mitchell St.': 'Urban',
-        'Pewaukee': 'Rural',
-        'Sheboygan': 'Rural',
-        'Wausau': 'Rural',
-        'Chesterfield': 'Rural',
-        'St.Cloud': 'Rural',
-        'Oakville': 'Rural',
-        'Shawnee': 'Rural'
-    }
+    """
+    Return the list of allowed clinic locations.
+    Uses the get_allowed_clinics() function from common_utils.
+    """
+    return get_allowed_clinics()
 
 #############################################
 # Helper Functions for Geographic & Demographic Metrics
@@ -250,6 +184,33 @@ def load_settings():
         st.error(f"Error loading settings: {e}")
         return None
 
+def load_credentials_from_file(filepath="credentials.txt"):
+    """
+    Load Salesforce credentials from a credentials file.
+    Returns a dictionary containing username, password, and security_token.
+    """
+    try:
+        credentials = {}
+        if os.path.exists(filepath):
+            with open(filepath, 'r') as f:
+                for line in f:
+                    if '=' in line:
+                        key, value = line.split('=', 1)
+                        credentials[key.strip()] = value.strip().strip('"\'')
+            
+            # Verify all required credentials are present
+            required_keys = ['username', 'password', 'security_token']
+            if all(key in credentials for key in required_keys):
+                return credentials
+            else:
+                missing = [key for key in required_keys if key not in credentials]
+                st.warning(f"Missing credentials in file: {', '.join(missing)}")
+                return None
+        return None
+    except Exception as e:
+        st.error(f"Error loading credentials: {e}")
+        return None
+
 def main():
     st.title("Clinic ZIP Code Optimizer & CSV Generation")
     st.markdown("""
@@ -301,7 +262,7 @@ def main():
             "keep_percentage": 50,
             "rural_radius": 20.0,
             "urban_radius": 10.0,
-            "selected_clinics": get_valid_locations()
+            "selected_clinics": get_allowed_clinics()  # Use the new function directly
         }
         
         # Try to load saved settings
@@ -339,10 +300,25 @@ def main():
         st.subheader("Clinic Service Radius")
         rural_radius = st.number_input("Rural Clinic Radius (miles)", 1.0, 1000.0, settings["rural_radius"], 1.0)
         urban_radius = st.number_input("Urban Clinic Radius (miles)", 1.0, 1000.0, settings["urban_radius"], 1.0)
-        
-        selected_clinics = st.multiselect("Select Clinics to Process",
-                                          options=get_valid_locations(),
-                                          default=settings["selected_clinics"])
+
+        # Replace the multiselect with a dropdown and a button
+        st.subheader("Clinic Selection")
+        all_clinics = get_allowed_clinics()  # Use the new function directly
+        clinic_selection_method = st.radio(
+            "Selection Method",
+            ["Select Single Clinic", "Select All Clinics"],
+            index=0 if len(settings["selected_clinics"]) == 1 else 1
+        )
+
+        if clinic_selection_method == "Select Single Clinic":
+            default_index = 0
+            if len(settings["selected_clinics"]) == 1:
+                if settings["selected_clinics"][0] in all_clinics:
+                    default_index = all_clinics.index(settings["selected_clinics"][0])
+            selected_clinics = [st.selectbox("Select Clinic", all_clinics, index=default_index)]
+        else:
+            selected_clinics = all_clinics
+            st.success(f"All {len(all_clinics)} clinics will be processed.")
         
         # Simple save button
         save_button = st.button("Save Current Settings")
@@ -482,10 +458,30 @@ def main():
         )
 
         final_assignments = final_assignments.sort_values('final_combined_score', ascending=False).reset_index(drop=True)
-        keep_count = int(math.ceil(len(final_assignments) * (keep_percentage / 100)))
+
+        # Fix the problem with optimized percentage calculation
         final_assignments['Optimized'] = False
-        if keep_count > 0:
-            final_assignments.loc[:keep_count - 1, 'Optimized'] = True
+        optimized_count_per_clinic = {}
+
+        # Process each clinic separately to apply the keep percentage correctly
+        for clinic in final_assignments['Assigned Clinic'].unique():
+            clinic_mask = final_assignments['Assigned Clinic'] == clinic
+            clinic_df = final_assignments[clinic_mask]
+            
+            # Calculate how many zipcodes to keep for this clinic
+            clinic_keep_count = int(math.ceil(len(clinic_df) * (keep_percentage / 100)))
+            
+            # Sort this clinic's zipcodes by score and mark the top ones as optimized
+            clinic_indices = clinic_df.sort_values('final_combined_score', ascending=False).index[:clinic_keep_count]
+            final_assignments.loc[clinic_indices, 'Optimized'] = True
+            
+            # Store the count for reporting
+            optimized_count_per_clinic[clinic] = clinic_keep_count
+
+        # Report information about the optimization
+        total_zipcodes = len(final_assignments)
+        total_optimized = final_assignments['Optimized'].sum()
+        st.info(f"Optimized {total_optimized} out of {total_zipcodes} ZIP codes ({total_optimized/total_zipcodes:.1%})")
 
         output_cols = [
             'zip', 'Assigned Clinic', 'Distance to Clinic', 'distance_score', 'geo_score',

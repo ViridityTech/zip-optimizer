@@ -9,36 +9,26 @@ import zipfile
 import streamlit.components.v1 as components
 
 #############################################
-# CONSTANT: Allowed Clinics (Only the specified locations)
-#############################################
-ALLOWED_CLINICS = [
-    "Ankeny",
-    "Beloit",
-    "Bettendorf",
-    "Boise",
-    "Chicago",
-    "Coeur d'Alene",
-    "Crystal Lake",
-    "Eau Claire",
-    "Elgin",
-    "Fond du Lac",
-    "Geneva",
-    "Iowa City",
-    "Lake Geneva",
-    "Meridian",
-    "Moorhead",
-    "Nampa",
-    "Rolling Meadows",
-    "Spokane",
-    "Urbandale",
-    "Warrenville",
-    "Weldon Spring",
-    "West Madison"
-]
-
-#############################################
 # HELPER FUNCTIONS
 #############################################
+
+def get_allowed_clinics():
+    """Load the list of allowed clinics from the addresses CSV file."""
+    try:
+        clinics_df = pd.read_csv('addresses_with_coordinates.csv')
+        return clinics_df['Clinic'].tolist()
+    except FileNotFoundError:
+        st.error("Error: addresses_with_coordinates.csv file not found!")
+        return []
+
+def get_clinic_types():
+    """Load clinic types from the addresses CSV file."""
+    try:
+        clinics_df = pd.read_csv('addresses_with_coordinates.csv')
+        return dict(zip(clinics_df['Clinic'], clinics_df['Type']))
+    except FileNotFoundError:
+        st.error("Error: addresses_with_coordinates.csv file not found!")
+        return {}
 
 def haversine_distance(lat1, lon1, lat2, lon2):
     """
@@ -108,72 +98,6 @@ def compute_metrics(df, geo_distance_w, demo_population_w, demo_bachelors_w,
                         demo_poverty_w * df['pov_norm'] +
                         demo_income_w * df['inc_norm'])
     return df
-
-def get_clinic_types():
-    return {
-        'Ankeny': 'Rural',
-        'Beloit': 'Rural',
-        'Bettendorf': 'Rural',
-        'Boise': 'Rural',
-        "Coeur d'Alene": 'Rural',
-        'Cedar Rapids': 'Rural',
-        'Chicago': 'Urban',
-        'Crystal Lake': 'Urban',
-        'Davenport': 'Rural',
-        'Dubuque': 'Rural',
-        'Dyer': 'Rural',
-        'Eau Claire': 'Rural',
-        'Elgin': 'Urban',
-        'Fond du Lac': 'Rural',
-        'Geneva': 'Rural',
-        'Iowa City': 'Rural',
-        'Lake Geneva': 'Rural',
-        'Meridian': 'Rural',
-        'Moorhead': 'Rural',
-        'Munster': 'Urban',
-        'Nampa': 'Rural',
-        'Rockford': 'Rural',
-        'Rolling Meadows': 'Urban',
-        'Spokane': 'Rural',
-        'Urbandale': 'Urban',
-        'Warrenville': 'Urban',
-        'Weldon Spring': 'Rural',
-        'West Madison': 'Rural',
-        'Anoka': 'Rural',
-        'Duluth': 'Rural',
-        'Lakeville': 'Rural',
-        'Mankato': 'Rural',
-        'Plymouth': 'Rural',
-        'Rochester': 'Rural',
-        'Shakopee': 'Rural',
-        'White Bear Lake': 'Rural',
-        'Woodbury': 'Rural',
-        'Kennewick': 'Rural',
-        'Tacoma': 'Urban',
-        'Appleton': 'Rural',
-        'Bellevue': 'Rural',
-        'Brillion': 'Rural',
-        'Brookfield': 'Urban',
-        'De Pere': 'Urban',
-        'E. Madison': 'Rural',
-        'Franklin': 'Urban',
-        'Green Bay CCD': 'Urban',
-        'Howard': 'Rural',
-        'Janesville': 'Rural',
-        'Kenosha': 'Rural',
-        'Kimberly': 'Urban',
-        'La Crosse': 'Rural',
-        'Menomonee': 'Rural',
-        'Mequon': 'Rural',
-        'Mitchell St.': 'Urban',
-        'Pewaukee': 'Rural',
-        'Sheboygan': 'Rural',
-        'Wausau': 'Rural',
-        'Chesterfield': 'Rural',
-        'St.Cloud': 'Rural',
-        'Oakville': 'Rural',
-        'Shawnee': 'Rural'
-    }
 
 #############################################
 # MAIN APP
