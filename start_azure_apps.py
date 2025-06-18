@@ -71,8 +71,8 @@ if __name__ == "__main__":
     
     print("\n" + "="*60)
     print("Starting both applications...")
-    print("Optimizer will be available at: http://YOUR_VM_IP:8501")
-    print("Visualizer will be available at: http://YOUR_VM_IP:8502")
+    print("Optimizer will be available at: http://20.127.202.39:8501")
+    print("Visualizer will be available at: http://20.127.202.39:8502")
     print("Make sure ports 8501 and 8502 are open in your NSG!")
     print("Press Ctrl+C to stop both applications")
     print("="*60 + "\n")

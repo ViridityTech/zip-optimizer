@@ -6,7 +6,10 @@ This guide will help you deploy the Clinic ZIP Code Optimizer and Visualizer on 
 
 1. Azure VM with Python 3.7+ installed
 2. Network Security Group (NSG) configured to allow inbound traffic on ports 8501 and 8502
-3. Project files uploaded to the VM (Note: Data files are now uploaded through the web interface)
+3. Project files uploaded to the VM, including:
+   - All Python scripts and configuration files
+   - `Zipcodes Info csv.csv` (ZIP code demographics data file)
+   - Note: Clinic addresses are uploaded through the web interface
 
 ## Quick Start
 
@@ -15,8 +18,8 @@ This guide will help you deploy the Clinic ZIP Code Optimizer and Visualizer on 
 python3 start_azure_apps.py
 ```
 This will start both the Optimizer and Visualizer simultaneously:
-- Optimizer: `http://YOUR_VM_IP:8501`
-- Visualizer: `http://YOUR_VM_IP:8502`
+- Optimizer: `http://20.127.202.39:8501`
+- Visualizer: `http://20.127.202.39:8502`
 
 ### Option 2: Run Individual Applications
 ```bash
@@ -29,16 +32,16 @@ python3 run_visualizer_azure.py
 
 ## Data Files
 
-The applications now use **file uploads** instead of requiring data files on the server. Users upload the required CSV and GeoJSON files through the web interface:
+The applications use a hybrid approach for data files:
 
 ### Required Files for Optimizer:
-1. **Clinic Addresses CSV** - Contains clinic information with columns:
+1. **Clinic Addresses CSV** (Upload Required) - Contains clinic information with columns:
    - `Clinic` - Name of the clinic
    - `latitude` - Latitude coordinate  
    - `longitude` - Longitude coordinate
    - `Type` - Type of clinic (Rural/Urban)
 
-2. **ZIP Code Demographics CSV** - Contains demographic data with columns:
+2. **ZIP Code Demographics CSV** (Project File) - Must be present on the server as `Zipcodes Info csv.csv`:
    - `zip` - ZIP code
    - `population_center_latitude` - Latitude of population center
    - `population_center_longitude` - Longitude of population center
@@ -73,23 +76,21 @@ You need to open the following ports in your Azure NSG:
 ## Accessing the Applications
 
 Once running, access the applications via:
-- **Optimizer**: `http://YOUR_VM_PUBLIC_IP:8501`
-- **Visualizer**: `http://YOUR_VM_PUBLIC_IP:8502`
-
-Replace `YOUR_VM_PUBLIC_IP` with your actual Azure VM's public IP address.
+- **Optimizer**: `http://20.127.202.39:8501`
+- **Visualizer**: `http://20.127.202.39:8502`
 
 ## Usage Workflow
 
 ### Optimizer
-1. Navigate to `http://YOUR_VM_PUBLIC_IP:8501`
-2. **Upload Data Files**: Upload the clinic addresses CSV and ZIP code demographics CSV
+1. Navigate to `http://20.127.202.39:8501`
+2. **Upload Clinic Data**: Upload the clinic addresses CSV (ZIP code data loads automatically from project file)
 3. **Authenticate with Salesforce**: Enter your Salesforce credentials
 4. **Configure Parameters**: Set weights and optimization parameters
 5. **Run Optimization**: Click "Run Optimization" to process
 6. **Download Results**: Download the optimized assignments CSV
 
 ### Visualizer  
-1. Navigate to `http://YOUR_VM_PUBLIC_IP:8502`
+1. Navigate to `http://20.127.202.39:8502`
 2. **Upload Files**: Upload the optimized assignments CSV (from Optimizer) and ZIP code boundaries GeoJSON
 3. **Generate Maps**: Click "Generate Maps"
 4. **Download Maps**: Download the ZIP file containing HTML maps for each clinic

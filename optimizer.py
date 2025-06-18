@@ -215,7 +215,7 @@ def main():
     st.title("Clinic ZIP Code Optimizer & CSV Generation")
     st.markdown("""
     **Workflow:**
-    1. Upload clinic and ZIP code data files.
+    1. Upload clinic addresses CSV file (ZIP code data is loaded from project directory).
     2. Configure weights and service parameters.
     3. Assign ZIP codes to clinics and compute geographic & demographic metrics.
     4. Query Salesforce for lead counts from the last 6 months (per zipcode).
@@ -225,12 +225,12 @@ def main():
     """)
 
     # File upload section
-    st.header("Step 1: Upload Required Data Files")
+    st.header("Step 1: Upload Clinic Data & Load ZIP Code Data")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("Clinic Data")
+        st.subheader("Clinic Data (Upload Required)")
         uploaded_clinics = st.file_uploader(
             "Upload Clinic Addresses CSV", 
             type=["csv"],
@@ -238,38 +238,46 @@ def main():
         )
     
     with col2:
-        st.subheader("ZIP Code Data")
-        uploaded_zipcodes = st.file_uploader(
-            "Upload ZIP Code Demographics CSV",
-            type=["csv"],
-            help="CSV file containing ZIP code demographic data"
-        )
-    
-    # Check if both files are uploaded
-    if not uploaded_clinics or not uploaded_zipcodes:
-        st.warning("Please upload both required CSV files to continue.")
-        st.info("""
-        **Required Files:**
+        st.subheader("ZIP Code Data (Using Project File)")
+        st.info("Using: `Zipcodes Info csv.csv` from project directory")
         
-        1. **Clinic Addresses CSV** - Must contain columns:
+        # Try to load the ZIP code data from the project directory
+        try:
+            zipcodes_df = pd.read_csv("Zipcodes Info csv.csv", low_memory=False)
+            st.success("✓ ZIP code data loaded from project file")
+            
+            # Validate zipcode data columns
+            required_zip_cols = ['zip', 'population_center_latitude', 'population_center_longitude']
+            missing_zip_cols = [col for col in required_zip_cols if col not in zipcodes_df.columns]
+            if missing_zip_cols:
+                st.error(f"Missing columns in ZIP code data: {missing_zip_cols}")
+                return
+                
+        except FileNotFoundError:
+            st.error("ZIP code data file not found: `Zipcodes Info csv.csv`")
+            st.info("Please ensure the file exists in the project root directory.")
+            return
+        except Exception as e:
+            st.error(f"Error loading ZIP code data: {e}")
+            return
+    
+    # Check if clinic file is uploaded
+    if not uploaded_clinics:
+        st.warning("Please upload the clinic addresses CSV file to continue.")
+        st.info("""
+        **Required File:**
+        
+        **Clinic Addresses CSV** - Must contain columns:
            - `Clinic` - Name of the clinic
            - `latitude` - Latitude coordinate  
            - `longitude` - Longitude coordinate
            - `Type` - Type of clinic (Rural/Urban)
         
-        2. **ZIP Code Demographics CSV** - Must contain columns:
-           - `zip` - ZIP code
-           - `population_center_latitude` - Latitude of population center
-           - `population_center_longitude` - Longitude of population center
-           - `population_count` - Population count
-           - `percent_bachelors_degree` - Percentage with bachelor's degree
-           - `percent_graduate_degree` - Percentage with graduate degree
-           - `percent_population_in_poverty` - Percentage in poverty
-           - `median_household_income` - Median household income
+        **Note:** ZIP code data is automatically loaded from the project directory.
         """)
         return
 
-    # Load and validate uploaded files
+    # Load and validate uploaded clinic file
     try:
         clinics_df = pd.read_csv(uploaded_clinics)
         st.success("✓ Clinic data loaded successfully")
@@ -283,21 +291,6 @@ def main():
             
     except Exception as e:
         st.error(f"Error loading clinic data: {e}")
-        return
-
-    try:
-        zipcodes_df = pd.read_csv(uploaded_zipcodes, low_memory=False)
-        st.success("✓ ZIP code data loaded successfully")
-        
-        # Validate zipcode data columns
-        required_zip_cols = ['zip', 'population_center_latitude', 'population_center_longitude']
-        missing_zip_cols = [col for col in required_zip_cols if col not in zipcodes_df.columns]
-        if missing_zip_cols:
-            st.error(f"Missing columns in ZIP code data: {missing_zip_cols}")
-            return
-            
-    except Exception as e:
-        st.error(f"Error loading ZIP code data: {e}")
         return
 
     # Get allowed clinics from uploaded data
@@ -430,6 +423,7 @@ def main():
 
     st.info("Processing clinic and ZIP code data...")
 
+    # Clean the data
     zipcodes_df = zipcodes_df.dropna(subset=['population_center_latitude','population_center_longitude','zip'])
     clinics_df = clinics_df.dropna(subset=['latitude','longitude','Type','Clinic'])
     
@@ -450,7 +444,7 @@ def main():
     clinic_names = clinics_df['Clinic'].values
     
     # Apply different radius based on clinic type (rural/urban)
-    clinic_types = get_clinic_types()
+    clinic_types = get_clinic_types(clinics_df)
     clinic_radii = np.array([
         rural_radius if clinic_types.get(name, 'Rural') == 'Rural' else urban_radius 
         for name in clinic_names

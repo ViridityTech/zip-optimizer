@@ -21,7 +21,7 @@ def install_requirements():
 def run_streamlit():
     """Run Streamlit with Azure-appropriate settings"""
     print("Starting Streamlit application...")
-    print("The application will be accessible from any IP address on port 8501")
+    print("The application will be accessible at: http://20.127.202.39:8501")
     print("Make sure port 8501 is open in your Azure Network Security Group")
     
     try:
