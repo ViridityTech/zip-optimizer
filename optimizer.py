@@ -215,7 +215,7 @@ def main():
     st.title("Clinic ZIP Code Optimizer & CSV Generation")
     st.markdown("""
     **Workflow:**
-    1. Load clinic and ZIP code data.
+    1. Upload clinic and ZIP code data files.
     2. Configure weights and service parameters.
     3. Assign ZIP codes to clinics and compute geographic & demographic metrics.
     4. Query Salesforce for lead counts from the last 6 months (per zipcode).
@@ -224,13 +224,92 @@ def main():
     7. The output is an **Optimized Assignments** CSV (with all raw and normalized metrics) for visualization.
     """)
 
-    # Get Salesforce authentication first
+    # File upload section
+    st.header("Step 1: Upload Required Data Files")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.subheader("Clinic Data")
+        uploaded_clinics = st.file_uploader(
+            "Upload Clinic Addresses CSV", 
+            type=["csv"],
+            help="CSV file containing clinic information with columns: Clinic, latitude, longitude, Type"
+        )
+    
+    with col2:
+        st.subheader("ZIP Code Data")
+        uploaded_zipcodes = st.file_uploader(
+            "Upload ZIP Code Demographics CSV",
+            type=["csv"],
+            help="CSV file containing ZIP code demographic data"
+        )
+    
+    # Check if both files are uploaded
+    if not uploaded_clinics or not uploaded_zipcodes:
+        st.warning("Please upload both required CSV files to continue.")
+        st.info("""
+        **Required Files:**
+        
+        1. **Clinic Addresses CSV** - Must contain columns:
+           - `Clinic` - Name of the clinic
+           - `latitude` - Latitude coordinate  
+           - `longitude` - Longitude coordinate
+           - `Type` - Type of clinic (Rural/Urban)
+        
+        2. **ZIP Code Demographics CSV** - Must contain columns:
+           - `zip` - ZIP code
+           - `population_center_latitude` - Latitude of population center
+           - `population_center_longitude` - Longitude of population center
+           - `population_count` - Population count
+           - `percent_bachelors_degree` - Percentage with bachelor's degree
+           - `percent_graduate_degree` - Percentage with graduate degree
+           - `percent_population_in_poverty` - Percentage in poverty
+           - `median_household_income` - Median household income
+        """)
+        return
+
+    # Load and validate uploaded files
+    try:
+        clinics_df = pd.read_csv(uploaded_clinics)
+        st.success("✓ Clinic data loaded successfully")
+        
+        # Validate clinic data columns
+        required_clinic_cols = ['Clinic', 'latitude', 'longitude', 'Type']
+        missing_clinic_cols = [col for col in required_clinic_cols if col not in clinics_df.columns]
+        if missing_clinic_cols:
+            st.error(f"Missing columns in clinic data: {missing_clinic_cols}")
+            return
+            
+    except Exception as e:
+        st.error(f"Error loading clinic data: {e}")
+        return
+
+    try:
+        zipcodes_df = pd.read_csv(uploaded_zipcodes, low_memory=False)
+        st.success("✓ ZIP code data loaded successfully")
+        
+        # Validate zipcode data columns
+        required_zip_cols = ['zip', 'population_center_latitude', 'population_center_longitude']
+        missing_zip_cols = [col for col in required_zip_cols if col not in zipcodes_df.columns]
+        if missing_zip_cols:
+            st.error(f"Missing columns in ZIP code data: {missing_zip_cols}")
+            return
+            
+    except Exception as e:
+        st.error(f"Error loading ZIP code data: {e}")
+        return
+
+    # Get allowed clinics from uploaded data
+    available_clinics = clinics_df['Clinic'].tolist()
+
+    # Get Salesforce authentication
     sf = None
     if 'sf_authenticated' not in st.session_state:
         st.session_state.sf_authenticated = False
     
     if not st.session_state.sf_authenticated:
-        st.header("Step 1: Salesforce Authentication")
+        st.header("Step 2: Salesforce Authentication")
         sf = get_salesforce_auth()
         if sf is not None:
             st.session_state.sf = sf
@@ -241,10 +320,10 @@ def main():
             return
     else:
         sf = st.session_state.sf
-        st.success("Using existing Salesforce authentication.")
+        st.success("✓ Using existing Salesforce authentication.")
 
     # Continue with the rest of the process
-    st.header("Step 2: Configure Optimization Parameters")
+    st.header("Step 3: Configure Optimization Parameters")
     
     with st.sidebar:
         st.header("Configuration")
@@ -262,7 +341,7 @@ def main():
             "keep_percentage": 50,
             "rural_radius": 20.0,
             "urban_radius": 10.0,
-            "selected_clinics": get_allowed_clinics()  # Use the new function directly
+            "selected_clinics": available_clinics  # Use clinics from uploaded data
         }
         
         # Try to load saved settings
@@ -303,7 +382,6 @@ def main():
 
         # Replace the multiselect with a dropdown and a button
         st.subheader("Clinic Selection")
-        all_clinics = get_allowed_clinics()  # Use the new function directly
         clinic_selection_method = st.radio(
             "Selection Method",
             ["Select Single Clinic", "Select All Clinics"],
@@ -313,12 +391,12 @@ def main():
         if clinic_selection_method == "Select Single Clinic":
             default_index = 0
             if len(settings["selected_clinics"]) == 1:
-                if settings["selected_clinics"][0] in all_clinics:
-                    default_index = all_clinics.index(settings["selected_clinics"][0])
-            selected_clinics = [st.selectbox("Select Clinic", all_clinics, index=default_index)]
+                if settings["selected_clinics"][0] in available_clinics:
+                    default_index = available_clinics.index(settings["selected_clinics"][0])
+            selected_clinics = [st.selectbox("Select Clinic", available_clinics, index=default_index)]
         else:
-            selected_clinics = all_clinics
-            st.success(f"All {len(all_clinics)} clinics will be processed.")
+            selected_clinics = available_clinics
+            st.success(f"All {len(available_clinics)} clinics will be processed.")
         
         # Simple save button
         save_button = st.button("Save Current Settings")
@@ -350,29 +428,7 @@ def main():
         st.info("Adjust settings in the sidebar and click **Run Optimization**.")
         return
 
-    st.info("Loading clinic and ZIP code data...")
-    try:
-        clinics_df = pd.read_csv("addresses_with_coordinates.csv")
-        st.write("Clinic data loaded successfully.")
-    except Exception as e:
-        st.error(f"Error loading clinic data: {e}")
-        return
-
-    try:
-        zipcodes_df = pd.read_csv("Zipcodes Info csv.csv", low_memory=False)
-        st.write("ZIP code data loaded successfully.")
-    except Exception as e:
-        st.error(f"Error loading ZIP code data: {e}")
-        return
-
-    for col in ['population_center_latitude', 'population_center_longitude', 'zip']:
-        if col not in zipcodes_df.columns:
-            st.error(f"Missing column in ZIP code data: {col}")
-            return
-    for col in ['latitude', 'longitude', 'Type', 'Clinic']:
-        if col not in clinics_df.columns:
-            st.error(f"Missing column in clinic data: {col}")
-            return
+    st.info("Processing clinic and ZIP code data...")
 
     zipcodes_df = zipcodes_df.dropna(subset=['population_center_latitude','population_center_longitude','zip'])
     clinics_df = clinics_df.dropna(subset=['latitude','longitude','Type','Clinic'])

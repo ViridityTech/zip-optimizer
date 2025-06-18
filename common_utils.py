@@ -12,22 +12,30 @@ import streamlit.components.v1 as components
 # HELPER FUNCTIONS
 #############################################
 
-def get_allowed_clinics():
-    """Load the list of allowed clinics from the addresses CSV file."""
+def get_allowed_clinics(clinics_df=None):
+    """Load the list of allowed clinics from the provided DataFrame or file."""
+    if clinics_df is not None:
+        return clinics_df['Clinic'].tolist()
+    
+    # Fallback to file reading (for backward compatibility)
     try:
         clinics_df = pd.read_csv('addresses_with_coordinates.csv')
         return clinics_df['Clinic'].tolist()
     except FileNotFoundError:
-        st.error("Error: addresses_with_coordinates.csv file not found!")
+        st.error("Error: No clinic data provided and addresses_with_coordinates.csv file not found!")
         return []
 
-def get_clinic_types():
-    """Load clinic types from the addresses CSV file."""
+def get_clinic_types(clinics_df=None):
+    """Load clinic types from the provided DataFrame or file."""
+    if clinics_df is not None:
+        return dict(zip(clinics_df['Clinic'], clinics_df['Type']))
+    
+    # Fallback to file reading (for backward compatibility)
     try:
         clinics_df = pd.read_csv('addresses_with_coordinates.csv')
         return dict(zip(clinics_df['Clinic'], clinics_df['Type']))
     except FileNotFoundError:
-        st.error("Error: addresses_with_coordinates.csv file not found!")
+        st.error("Error: No clinic data provided and addresses_with_coordinates.csv file not found!")
         return {}
 
 def haversine_distance(lat1, lon1, lat2, lon2):

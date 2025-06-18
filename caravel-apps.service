@@ -1,0 +1,16 @@
+[Unit]
+Description=Caravel Clinic ZIP Code Applications
+After=network.target
+
+[Service]
+Type=simple
+User=azureuser
+WorkingDirectory=/home/azureuser/zip-optimizer_2
+ExecStart=/usr/bin/python3 start_azure_apps.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target 
