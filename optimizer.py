@@ -334,6 +334,7 @@ def main():
             "keep_percentage": 50,
             "rural_radius": 20.0,
             "urban_radius": 10.0,
+            "suburban_radius": 15.0,
             "selected_clinics": available_clinics  # Use clinics from uploaded data
         }
         
@@ -371,6 +372,7 @@ def main():
         # Add separate radius inputs for rural and urban clinics
         st.subheader("Clinic Service Radius")
         rural_radius = st.number_input("Rural Clinic Radius (miles)", 1.0, 1000.0, settings["rural_radius"], 1.0)
+        suburban_radius = st.number_input("Suburban Clinic Radius (miles)", 1.0, 1000.0, settings.get("suburban_radius", 15.0), 1.0)
         urban_radius = st.number_input("Urban Clinic Radius (miles)", 1.0, 1000.0, settings["urban_radius"], 1.0)
 
         # Replace the multiselect with a dropdown and a button
@@ -408,6 +410,7 @@ def main():
                 "keep_percentage": keep_percentage,
                 "rural_radius": rural_radius,
                 "urban_radius": urban_radius,
+                "suburban_radius": suburban_radius,
                 "selected_clinics": selected_clinics
             }
             
@@ -443,12 +446,19 @@ def main():
     clinic_lon = clinics_df['longitude'].values
     clinic_names = clinics_df['Clinic'].values
     
-    # Apply different radius based on clinic type (rural/urban)
-    clinic_types = get_clinic_types(clinics_df)
-    clinic_radii = np.array([
-        rural_radius if clinic_types.get(name, 'Rural') == 'Rural' else urban_radius 
-        for name in clinic_names
-    ])
+    # Determine radius based on clinic type
+    clinic_radii = []
+    for name in clinic_names:
+        ctype = clinic_types.get(name, 'Rural')
+        if ctype == 'Rural':
+            clinic_radii.append(rural_radius)
+        elif ctype == 'Urban':
+            clinic_radii.append(urban_radius)
+        elif ctype == 'Suburban':
+            clinic_radii.append(suburban_radius)
+        else:
+            clinic_radii.append(rural_radius)  # Fallback
+    clinic_radii = np.array(clinic_radii)
     
     distances = haversine_distance(zip_lat, zip_lon, clinic_lat, clinic_lon)
     st.write("Distance calculation completed.")

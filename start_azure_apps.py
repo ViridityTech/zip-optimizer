@@ -45,14 +45,14 @@ def get_streamlit_path():
     # Last resort: use python -m streamlit
     return None
 
-def run_optimizer():
-    """Run the optimizer on port 8501"""
-    print("Starting Optimizer on port 8501...")
+def run_app():
+    """Run the unified Streamlit application on port 8501"""
+    print("Starting unified app on port 8501...")
     try:
         streamlit_path = get_streamlit_path()
         if streamlit_path:
             cmd = [
-                streamlit_path, "run", "optimizer.py",
+                streamlit_path, "run", "app.py",
                 "--server.address", "0.0.0.0",
                 "--server.port", "8501",
                 "--server.headless", "true",
@@ -60,7 +60,7 @@ def run_optimizer():
             ]
         else:
             cmd = [
-                sys.executable, "-m", "streamlit", "run", "optimizer.py",
+                sys.executable, "-m", "streamlit", "run", "app.py",
                 "--server.address", "0.0.0.0",
                 "--server.port", "8501",
                 "--server.headless", "true",
@@ -68,32 +68,7 @@ def run_optimizer():
             ]
         subprocess.run(cmd)
     except Exception as e:
-        print(f"✗ Optimizer error: {e}")
-
-def run_visualizer():
-    """Run the visualizer on port 8502"""
-    print("Starting Visualizer on port 8502...")
-    try:
-        streamlit_path = get_streamlit_path()
-        if streamlit_path:
-            cmd = [
-                streamlit_path, "run", "visualizer.py",
-                "--server.address", "0.0.0.0",
-                "--server.port", "8502",
-                "--server.headless", "true",
-                "--browser.gatherUsageStats", "false"
-            ]
-        else:
-            cmd = [
-                sys.executable, "-m", "streamlit", "run", "visualizer.py",
-                "--server.address", "0.0.0.0",
-                "--server.port", "8502",
-                "--server.headless", "true",
-                "--browser.gatherUsageStats", "false"
-            ]
-        subprocess.run(cmd)
-    except Exception as e:
-        print(f"✗ Visualizer error: {e}")
+        print(f"✗ App error: {e}")
 
 if __name__ == "__main__":
     print("=== Clinic ZIP Code Applications - Azure Deployment ===")
@@ -123,26 +98,14 @@ if __name__ == "__main__":
         print("✓ Will use python -m streamlit")
     
     print("\n" + "="*60)
-    print("Starting both applications...")
-    print("Optimizer will be available at: http://20.127.202.39:8501")
-    print("Visualizer will be available at: http://20.127.202.39:8502")
+    print("Starting application...")
+    print("App will be available at: http://20.127.202.39:8501")
     print("Make sure ports 8501 and 8502 are open in your NSG!")
     print("Press Ctrl+C to stop both applications")
     print("="*60 + "\n")
     
-    # Start both applications in separate threads
-    optimizer_thread = threading.Thread(target=run_optimizer, daemon=True)
-    visualizer_thread = threading.Thread(target=run_visualizer, daemon=True)
-    
     try:
-        optimizer_thread.start()
-        time.sleep(2)  # Small delay between starts
-        visualizer_thread.start()
-        
-        # Keep the main thread alive
-        while True:
-            time.sleep(1)
-            
+        run_app()
     except KeyboardInterrupt:
-        print("\n✓ Applications stopped by user")
+        print("\n✓ Application stopped by user")
         sys.exit(0) 
