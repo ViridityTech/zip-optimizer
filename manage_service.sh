@@ -18,8 +18,7 @@ show_help() {
     echo "  remove    - Remove the service completely"
     echo ""
     echo "Applications:"
-    echo "- Optimizer: http://20.127.202.39:8501"
-    echo "- Visualizer: http://20.127.202.39:8502"
+    echo "- Unified App: http://20.127.202.39:8501"
 }
 
 case "$1" in
