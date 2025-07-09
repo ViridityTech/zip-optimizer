@@ -6,6 +6,7 @@ After=network.target
 Type=simple
 User=viriditytech
 WorkingDirectory=/home/viriditytech/apps/zip-optimizer
+Environment=PATH=/home/viriditytech/.local/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/usr/bin/python3 start_azure_apps.py
 Restart=always
 RestartSec=10
