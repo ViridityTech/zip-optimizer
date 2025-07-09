@@ -447,6 +447,7 @@ def main():
     clinic_names = clinics_df['Clinic'].values
     
     # Determine radius based on clinic type
+    clinic_types = get_clinic_types(clinics_df)
     clinic_radii = []
     for name in clinic_names:
         ctype = clinic_types.get(name, 'Rural')
